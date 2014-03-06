@@ -1,0 +1,7 @@
+{
+  "url": "https://github.com/hydeparkk/ninja-ide-proxy", 
+  "version": "0.1", 
+  "class": "Proxy", 
+  "module": "proxy", 
+  "authors": "Hydeparkk"
+}
