@@ -1,7 +1,29 @@
 {
+  "mainFile": "", 
+  "use-tabs": false, 
   "venv": "", 
-  "project-type": "NINJA-Plugin-Project", 
+  "relatedProjects": [], 
   "name": "ProxyPlugin", 
   "license": "MIT License", 
+  "url": "", 
+  "pythonPath": "python", 
+  "preExecScript": "", 
+  "additional_builtins": [], 
+  "programParams": "", 
+  "indentation": 4, 
+  "PYTHONPATH": "", 
+  "supported-extensions": [
+    ".py", 
+    ".html", 
+    ".jpg", 
+    ".png", 
+    ".ui", 
+    ".css", 
+    ".json", 
+    ".js", 
+    ".ini"
+  ], 
+  "project-type": "NINJA-Plugin-Project", 
+  "postExecScript": "", 
   "description": ""
 }
