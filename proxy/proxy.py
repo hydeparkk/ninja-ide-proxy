@@ -8,8 +8,11 @@ from PyQt4.QtGui import QLineEdit
 from PyQt4.QtGui import QDialogButtonBox
 from PyQt4.QtGui import QCheckBox
 from PyQt4.QtGui import QLabel
-from PyQt4.QtCore import Qt
 from PyQt4.QtGui import QDialog
+from PyQt4.QtGui import QIcon
+from PyQt4.QtGui import QPushButton
+from PyQt4.QtGui import QHBoxLayout
+from PyQt4.QtCore import Qt
 from PyQt4.QtCore import QSettings
 from PyQt4.QtCore import QObject
 from PyQt4.QtCore import QSize
@@ -19,15 +22,38 @@ from PyQt4.QtCore import SIGNAL
 from ninja_ide import resources
 from ninja_ide.core import plugin
 
+import logging
+logger = logging.getLogger('proxyPlugin')
+hdlr = logging.FileHandler('D:\\Python\\ninja-ide-2.3\\proxyPlugin.log')
+formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+hdlr.setFormatter(formatter)
+logger.addHandler(hdlr)
+logger.setLevel(logging.DEBUG)
+
 
 class Proxy(plugin.Plugin):
     def initialize(self):
         self.menu = self.locator.get_service('menuApp')
         self.proxy_menu_item = QAction('Proxy Settings', self)
         self.menu.add_action(self.proxy_menu_item)
-        self.preferences_widget = ProxyPreferencesWidget(parent=None)
-        self.preferences = self.preferences_widget.load_settings()
+        QObject.connect(self.proxy_menu_item, SIGNAL('triggered()'), self.open_preferences)
 
+        self.preferences = self.load_settings()
+        self.set_proxy()
+
+    def finish(self):
+        # Shutdown your plugin
+        pass
+
+    def open_preferences(self):
+        preferences_widget = ProxyPreferencesWidget(parent=None)
+        preferences_widget.set_values(self.preferences)
+        ret = preferences_widget.exec_()
+        if ret == 1:
+            self.preferences = self.load_settings()
+            self.set_proxy()
+
+    def set_proxy(self):
         #lint:disable
         try:
             from urllib.request import ProxyHandler
@@ -40,16 +66,23 @@ class Proxy(plugin.Plugin):
             from urllib2 import install_opener
         #lint:enable
 
-        install_opener(build_opener(ProxyHandler({'http': ''})))
-        QObject.connect(self.proxy_menu_item, SIGNAL('clicked()'), self.preferences_widget.show)
+        if self.preferences['proxy_enabled']:
+            if self.preferences['proxy_login'] == '' and self.preferences['proxy_password'] == '':
+                install_opener(build_opener(ProxyHandler({'http': self.preferences['proxy_server']})))
+            else:
+                proxyUrl = self.preferences['proxy_login'] + ':' + self.preferences['proxy_password'] + '@' + self.preferences['proxy_server']
+                install_opener(build_opener(ProxyHandler({'http': proxyUrl})))
+        else:
+            install_opener(build_opener(ProxyHandler({'http': ''})))
 
-    def finish(self):
-        # Shutdown your plugin
-        pass
-
-    def get_preferences_widget(self):
-        # Return a widget for customize your plugin
-        pass
+    def load_settings(self):
+        prefs = {}
+        qsettings = QSettings(resources.SETTINGS_PATH, QSettings.IniFormat)
+        prefs['proxy_enabled'] = qsettings.value('proxy/enabled', False, type=bool)
+        prefs['proxy_server'] = qsettings.value('proxy/server', '', type='QString')
+        prefs['proxy_login'] = qsettings.value('proxy/login', '', type='QString')
+        prefs['proxy_password'] = base64.b64decode(qsettings.value('proxy/password', '', type='QString'))
+        return prefs
 
 
 class ProxyPreferencesWidget(QDialog):
@@ -63,21 +96,26 @@ class ProxyPreferencesWidget(QDialog):
         self.formLayout.setObjectName('formLayout')
         self.proxyEnable = QCheckBox(self)
         self.proxyEnable.setObjectName('proxyEnable')
+        self.proxyEnable.stateChanged.connect(self.enable_edit)
         self.formLayout.setWidget(0, QFormLayout.LabelRole, self.proxyEnable)
         self.proxyServer = QLineEdit(self)
         self.proxyServer.setObjectName('proxyServer')
         self.formLayout.setWidget(1, QFormLayout.FieldRole, self.proxyServer)
+        self.proxyLogin = QLineEdit(self)
+        self.proxyLogin.setObjectName('proxyLogin')
+        self.formLayout.setWidget(2, QFormLayout.FieldRole, self.proxyLogin)
+        #self.proxyPass = QLineEdit(self)
+        plug_path = os.path.abspath(__file__)
+        plug_path = os.path.dirname(plug_path)
+        self.proxyPass = ButtonInLineEdit(self, plug_path + '/eye.svg')
+        self.proxyPass.setObjectName('proxyPass')
+        self.proxyPass.setEchoMode(QLineEdit.Password)
+        self.formLayout.setWidget(3, QFormLayout.FieldRole, self.proxyPass)
         self.buttonBox = QDialogButtonBox(self)
         self.buttonBox.setOrientation(Qt.Horizontal)
         self.buttonBox.setStandardButtons(QDialogButtonBox.Cancel | QDialogButtonBox.Ok)
         self.buttonBox.setObjectName('buttonBox')
         self.formLayout.setWidget(4, QFormLayout.FieldRole, self.buttonBox)
-        self.proxyLogin = QLineEdit(self)
-        self.proxyLogin.setObjectName('proxyLogin')
-        self.formLayout.setWidget(2, QFormLayout.FieldRole, self.proxyLogin)
-        self.proxyPass = QLineEdit(self)
-        self.proxyPass.setObjectName('proxyPass')
-        self.formLayout.setWidget(3, QFormLayout.FieldRole, self.proxyPass)
         self.label = QLabel(self)
         self.label.setObjectName('label')
         self.formLayout.setWidget(1, QFormLayout.LabelRole, self.label)
@@ -96,24 +134,52 @@ class ProxyPreferencesWidget(QDialog):
 
         QObject.connect(self.buttonBox, SIGNAL('accepted()'), self.save_settings)
         QObject.connect(self.buttonBox, SIGNAL('rejected()'), self.reject)
+        QObject.connect(self.proxyPass.Button, SIGNAL('pressed()'), lambda: self.proxyPass.setEchoMode(QLineEdit.Normal))
+        QObject.connect(self.proxyPass.Button, SIGNAL('released()'), lambda: self.proxyPass.setEchoMode(QLineEdit.Password))
         QMetaObject.connectSlotsByName(self)
 
-    def show(self):
-        pass
+    def show_pass(self):
+        self.proxyPass.setEchoMode(QLineEdit.Normal)
+
+    def enable_edit(self):
+        if not self.proxyEnable.isChecked():
+            self.proxyServer.setEnabled(False)
+            self.proxyLogin.setEnabled(False)
+            self.proxyPass.setEnabled(False)
+        else:
+            self.proxyServer.setEnabled(True)
+            self.proxyLogin.setEnabled(True)
+            self.proxyPass.setEnabled(True)
+
+    def set_values(self, preferences):
+        self.proxyEnable.setChecked(preferences['proxy_enabled'])
+        self.proxyServer.setText(preferences['proxy_server'])
+        self.proxyLogin.setText(preferences['proxy_login'])
+        self.proxyPass.setText(preferences['proxy_password'])
+        self.enable_edit()
 
     def save_settings(self):
         qsettings = QSettings(resources.SETTINGS_PATH, QSettings.IniFormat)
         qsettings.beginGroup('proxy')
-        qsettings.setValue('enabled', True)
-        qsettings.setValue('server', '')
-        qsettings.setValue('login', '')
-        qsettings.setValue('password', base64.b64encode('test'))
+        qsettings.setValue('enabled', self.proxyEnable.isChecked())
+        qsettings.setValue('server', self.proxyServer.text())
+        qsettings.setValue('login', self.proxyLogin.text())
+        qsettings.setValue('password', base64.b64encode(self.proxyPass.text()))
         qsettings.endGroup()
-        self.accept
+        self.accept()
 
-    def load_settings(self):
-        qsettings = QSettings(resources.SETTINGS_PATH, QSettings.IniFormat)
-        self.proxy_enabled = qsettings.value('proxy/enabled', True, type=bool)
-        self.proxy_server = qsettings.value('proxy/server', '', type='QString')
-        self.proxy_login = qsettings.value('proxy/login', '', type='QString')
-        self.proxy_password = base64.b64decode(qsettings.value('proxy/password', '', type='QString'))
+
+class ButtonInLineEdit(QLineEdit):
+    def __init__(self, parent=None, icon=None):
+        QLineEdit.__init__(self, parent)
+
+        self.Button = QPushButton(self)
+        self.Button.setCursor(Qt.PointingHandCursor)
+        self.Button.setFocusPolicy(Qt.NoFocus)
+        self.Button.setIcon(QIcon(icon))
+        #self.Button.setStyleSheet('background: transparent; border: none;')
+        layout = QHBoxLayout(self)
+        layout.addWidget(self.Button, 0, Qt.AlignRight)
+
+        layout.setSpacing(0)
+        layout.setMargin(1)
