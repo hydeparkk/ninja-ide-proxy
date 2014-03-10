@@ -22,14 +22,6 @@ from PyQt4.QtCore import SIGNAL
 from ninja_ide import resources
 from ninja_ide.core import plugin
 
-import logging
-logger = logging.getLogger('proxyPlugin')
-hdlr = logging.FileHandler('D:\\Python\\ninja-ide-2.3\\proxyPlugin.log')
-formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-hdlr.setFormatter(formatter)
-logger.addHandler(hdlr)
-logger.setLevel(logging.DEBUG)
-
 
 class Proxy(plugin.Plugin):
     def initialize(self):
