@@ -76,6 +76,22 @@ class Proxy(plugin.Plugin):
         prefs['proxy_password'] = base64.b64decode(qsettings.value('proxy/password', '', type='QString'))
         return prefs
 
+    def load_settins_from_env(self):
+        prefs = {}
+        env_proxy = os.environ.get('HTTP_PROXY')
+        if env_proxy is not None:
+            prefs['proxy_enabled'] = True
+            if os.environ.get('HTTP_PROXY_USER') is not None and os.environ.get('HTTP_PASS') is not None:
+                prefs['proxy_server'] = env_proxy[7:]
+                prefs['proxy_login'] = os.environ.get('HTTP_PROXY_USER')
+                prefs['proxy_password'] = os.environ.get('HTTP_PASS')
+            else:
+                if env_proxy[:7] == 'http://' and len(env_proxy.split('@')) == 2:
+                    prefs['proxy_server'] = env_proxy[7:].split('@')[1]
+                    prefs['proxy_login'], prefs['proxy_password'] = env_proxy[7:].split('@')[0].split(':')
+                else:
+                    pass
+
 
 class ProxyPreferencesWidget(QDialog):
     def __init__(self, parent=None):
@@ -90,6 +106,10 @@ class ProxyPreferencesWidget(QDialog):
         self.proxyEnable.setObjectName('proxyEnable')
         self.proxyEnable.stateChanged.connect(self.enable_edit)
         self.formLayout.setWidget(0, QFormLayout.LabelRole, self.proxyEnable)
+        self.envProxyEnable = QCheckBox(self)
+        self.envProxyEnable.setObjectName('envProxyEnable')
+        #self.envProxyEnable.stateChanged.connect(self.enable_edit)
+        self.formLayout.setWidget(0, QFormLayout.FieldRole, self.envProxyEnable)
         self.proxyServer = QLineEdit(self)
         self.proxyServer.setObjectName('proxyServer')
         self.formLayout.setWidget(1, QFormLayout.FieldRole, self.proxyServer)
