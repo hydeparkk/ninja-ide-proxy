@@ -29,8 +29,9 @@ class Proxy(plugin.Plugin):
         self.proxy_menu_item = QAction('Proxy Settings', self)
         self.menu.add_action(self.proxy_menu_item)
         QObject.connect(self.proxy_menu_item, SIGNAL('triggered()'), self.open_preferences)
-
-        self.preferences = self.load_settings()
+        self.preferences = self.load_settins_from_env()
+        if not self.preferences:
+            self.preferences = self.load_settings()
         self.set_proxy()
 
     def finish(self):
@@ -81,16 +82,22 @@ class Proxy(plugin.Plugin):
         env_proxy = os.environ.get('HTTP_PROXY')
         if env_proxy is not None:
             prefs['proxy_enabled'] = True
-            if os.environ.get('HTTP_PROXY_USER') is not None and os.environ.get('HTTP_PASS') is not None:
-                prefs['proxy_server'] = env_proxy[7:]
-                prefs['proxy_login'] = os.environ.get('HTTP_PROXY_USER')
-                prefs['proxy_password'] = os.environ.get('HTTP_PASS')
-            else:
-                if env_proxy[:7] == 'http://' and len(env_proxy.split('@')) == 2:
-                    prefs['proxy_server'] = env_proxy[7:].split('@')[1]
-                    prefs['proxy_login'], prefs['proxy_password'] = env_proxy[7:].split('@')[0].split(':')
+            env_proxy = env_proxy[7:] if env_proxy[:7] == 'http://' else env_proxy
+            if os.environ.get('HTTP_PROXY_USER') is not None:
+                prefs['proxy_server'] = env_proxy
+                if len(os.environ.get('HTTP_PROXY_USER').split(':')) == 2:
+                    prefs['proxy_login'], prefs['proxy_password'] = os.environ.get('HTTP_PROXY_USER').split(':')
                 else:
-                    pass
+                    prefs['proxy_login'] = os.environ.get('HTTP_PROXY_USER')
+                    prefs['proxy_password'] = os.environ.get('HTTP_PROXY_PASS')
+            else:
+                if len(env_proxy.split('@')) == 2:
+                    prefs['proxy_server'] = env_proxy.split('@')[1]
+                    prefs['proxy_login'], prefs['proxy_password'] = env_proxy.split('@')[0].split(':')
+                else:
+                    prefs['proxy_server'] = env_proxy
+                    prefs['proxy_login'] = prefs['proxy_password'] = None
+        return prefs
 
 
 class ProxyPreferencesWidget(QDialog):
@@ -119,7 +126,7 @@ class ProxyPreferencesWidget(QDialog):
         #self.proxyPass = QLineEdit(self)
         plug_path = os.path.abspath(__file__)
         plug_path = os.path.dirname(plug_path)
-        self.proxyPass = ButtonInLineEdit(self, plug_path + '/eye.svg')
+        self.proxyPass = ButtonInLineEdit(self, plug_path + '/eye.png')
         self.proxyPass.setObjectName('proxyPass')
         self.proxyPass.setEchoMode(QLineEdit.Password)
         self.formLayout.setWidget(3, QFormLayout.FieldRole, self.proxyPass)
@@ -140,6 +147,7 @@ class ProxyPreferencesWidget(QDialog):
 
         self.setWindowTitle('Proxy preferences')
         self.proxyEnable.setText('Enable Proxy')
+        self.envProxyEnable.setText('')
         self.label.setText('Proxy server:port')
         self.label_2.setText('Login')
         self.label_3.setText('Password')
@@ -189,7 +197,11 @@ class ButtonInLineEdit(QLineEdit):
         self.Button.setCursor(Qt.PointingHandCursor)
         self.Button.setFocusPolicy(Qt.NoFocus)
         self.Button.setIcon(QIcon(icon))
-        #self.Button.setStyleSheet('background: transparent; border: none;')
+        self.Button.setStyleSheet('background: transparent; border: none;')
+
+        #QObject.connect(self.Button, SIGNAL('entered()'), lambda: self.Button.setStyleSheet('background: #A8A8A8'))
+        #QObject.connect(self.Button, SIGNAL('leaved()'), lambda: self.Button.setStyleSheet('background: transparent'))
+
         layout = QHBoxLayout(self)
         layout.addWidget(self.Button, 0, Qt.AlignRight)
 
